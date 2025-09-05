@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ICS Calendar Viewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
+
+        /* New CSS variables for a more robust theme switching */
+        :root {
+            --grid-color: #d1d5db; /* Light gray grid lines */
+            --cell-bg: #f9fafb;    /* Light gray cell background */
+            --text-color: #4b5563; /* Medium gray text */
+        }
+        .dark {
+            --grid-color: #374151; /* Muted blue-grey grid lines for dark mode */
+            --cell-bg: #1f2937;    /* Consistent dark background for cells */
+            --text-color: #e2e8f0; /* Light text for dark mode */
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.3s ease;
+            background-color: #f3f4f6; /* Tailwind gray-100 */
+        }
+        .dark body {
+            background-color: #1a202c; /* Tailwind gray-900 */
+        }
+        
+        .calendar-grid {
+            display: grid;
+            gap: 0;
+            background-color: var(--cell-bg);
+        }
+        .calendar-grid.day-view {
+            grid-template-columns: 60px 1fr;
+        }
+
+        .time-slot, .day-header, .event-slot {
+            background-color: var(--cell-bg);
+            color: var(--text-color);
+            border: 2px solid var(--grid-color);
+            border-left: none;
+            border-top: none;
+        }
+
+        .time-slot:nth-child(24n + 2) {
+            border-left: 2px solid var(--grid-color);
+        }
+        .day-header {
+            border-top: none;
+        }
+
+        .day-header:first-child {
+            border: 2px solid var(--grid-color);
+            border-top: none;
+            border-right: 2px solid var(--grid-color);
+            border-bottom: 2px solid var(--grid-color);
+            border-left: none;
+        }
+        
+        .time-slot:first-of-type, .event-slot:first-of-type {
+            border-top: 2px solid var(--grid-color);
+        }
+
+        /* Fix for the last column */
+        .last-col {
+            border-right: 2px solid var(--grid-color);
+        }
+        
+        /* Remove border from last row */
+        .last-row {
+            border-bottom: none;
+        }
+
+
+        .time-slot {
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 8px;
+            font-size: 0.75rem;
+            position: relative;
+        }
+        .day-header {
+            text-align: center;
+            padding: 8px 0;
+            font-weight: 500;
+        }
+        .event-slot {
+            position: relative;
+            min-height: 48px;
+            /* Added padding for consistent horizontal spacing */
+            padding: 0 2px;
+        }
+
+        .event {
+            position: absolute;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            padding: 4px 8px;
+            font-size: 0.875rem;
+            color: white;
+            z-index: 10;
+            transition: transform 0.2s ease-in-out;
+            /* Removed margin to prevent conflicts with absolute positioning */
+        }
+        .event:hover {
+            transform: scale(1.05);
+        }
+        .event-title {
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .event-time {
+            font-size: 0.75rem;
+        }
+        .toggle-switch-container {
+            position: relative;
+            display: inline-block;
+            width: 48px;
+            height: 24px;
+        }
+        .toggle-switch-container input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .toggle-slider {
+            background-color: #10b981;
+        }
+        input:checked + .toggle-slider:before {
+            transform: translateX(24px);
+        }
+        #message-box {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #ef4444;
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            z-index: 50;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            pointer-events: none;
+        }
+        
+        /* New Dark Mode Styles using CSS variables */
+        .dark #sidebar, .dark .flex.space-x-2.bg-white, .dark #context-menu, .dark #calendar-container {
+            background-color: #2d3748;
+        }
+        .dark #sidebar, .dark .flex.space-x-2.bg-white {
+            background-color: #2d3748;
+        }
+        .dark .toggle-switch-container input:not(:checked) + .toggle-slider {
+            background-color: #4a5568;
+        }
+        .dark .text-gray-800, .dark .text-gray-700, .dark .text-gray-600 {
+            color: #e2e8f0;
+        }
+        .dark .bg-gray-50 {
+            background-color: #4a5568;
+        }
+        .dark .border-blue-500 {
+            border-color: #63b3ed;
+        }
+        .dark .hover\:bg-blue-500:hover {
+            background-color: #63b3ed;
+        }
+        .dark .text-blue-500 {
+            color: #63b3ed;
+        }
+        .dark .bg-white {
+            background-color: #2d3748;
+        }
+
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 flex h-screen overflow-hidden">
+
+    <!-- Main Message Box -->
+    <div id="message-box" class="hidden"></div>
+
+    <!-- Sidebar -->
+    <div id="sidebar" class="w-64 bg-white dark:bg-gray-800 p-6 shadow-md overflow-y-auto z-20 flex-shrink-0">
+        <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-6">Calendars</h1>
+
+        <!-- File Upload Area -->
+        <div class="mb-6">
+            <label for="ics-file-upload" class="flex flex-col items-center px-4 py-6 bg-gray-50 dark:bg-gray-700 text-blue-500 dark:text-blue-300 rounded-lg shadow-lg tracking-wide uppercase border border-blue-500 dark:border-blue-300 cursor-pointer hover:bg-blue-500 hover:text-white transition-colors duration-200">
+                <svg class="w-8 h-8" fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                    <path d="M16.88 9.1A4 4 0 0 1 16 17H5a5 5 0 0 1-1-9.9V7a3 3 0 0 1 4.52-2.59A4.98 4.02 0 0 1 17 8c0 .38-.04.75-.12 1.1zM11 11h3l-4-4-4 4h3v3h2v-3z"/>
+                </svg>
+                <span class="mt-2 text-base leading-normal">Upload .ics Files</span>
+            </label>
+            <input type='file' id="ics-file-upload" class="hidden" multiple accept=".ics" />
+        </div>
+
+        <!-- List of Uploaded Calendars -->
+        <div id="calendar-list" class="space-y-4">
+            <!-- Calendar entries will be rendered here by JS -->
+        </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="flex-1 flex flex-col p-6 overflow-hidden">
+        <!-- Calendar Header -->
+        <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
+            <div class="flex items-center space-x-2">
+                <button id="prev-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                </button>
+                <span id="current-date-display" class="text-xl font-semibold text-gray-700 dark:text-gray-200"></span>
+                <button id="next-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-4">
+                <div class="flex space-x-2 bg-white dark:bg-gray-800 rounded-full p-1 shadow">
+                    <button id="week-view-btn" class="px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200 bg-blue-500 text-white shadow-md">Week View</button>
+                    <button id="day-view-btn" class="px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">Day View</button>
+                </div>
+
+                <!-- Timezone Selector -->
+                <div class="relative inline-block text-left">
+                    <select id="timezone-select" class="block w-full rounded-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm pl-4 pr-10 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                        <option value="local">Local Time</option>
+                        <option value="America/New_York">Eastern Time</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- New Export/Mode Controls -->
+            <div class="flex items-center space-x-4 flex-wrap">
+                <!-- Hide Weekends/Off-hours Toggle -->
+                <label class="flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-200 cursor-pointer">
+                    <span class="mr-2 whitespace-nowrap">Filter View</span>
+                    <div class="toggle-switch-container">
+                        <input type="checkbox" id="filter-view-toggle">
+                        <span class="toggle-slider"></span>
+                    </div>
+                </label>
+                <!-- Dark Mode Toggle -->
+                <label class="flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-200 cursor-pointer">
+                    <span class="mr-2 whitespace-nowrap">Dark Mode</span>
+                    <div class="toggle-switch-container">
+                        <input type="checkbox" id="dark-mode-toggle">
+                        <span class="toggle-slider"></span>
+                    </div>
+                </label>
+
+                <!-- Random Palette Button -->
+                <button id="random-palette-btn" class="px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200 bg-gray-500 text-white shadow-md hover:bg-gray-600">Random Palette</button>
+                
+                <!-- Download Buttons -->
+                <button id="download-ics-btn" class="px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200 bg-green-500 text-white shadow-md hover:bg-green-600">Download ICS</button>
+                <button id="download-image-btn" class="px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200 bg-purple-500 text-white shadow-md hover:bg-purple-600">Download Image</button>
+            </div>
+        </div>
+
+        <!-- Calendar Grid -->
+        <div id="calendar-container" class="relative flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-y-auto">
+            <div id="calendar" class="calendar-grid w-full h-full">
+                <!-- Grid items will be generated by JS -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Hidden color picker -->
+    <input type="color" id="color-picker" class="hidden">
+    
+    <!-- Context Menu -->
+    <div id="context-menu" class="absolute hidden bg-white dark:bg-gray-700 rounded-lg shadow-lg p-4 z-50 min-w-[200px]">
+        <h3 id="context-menu-title" class="font-bold text-lg mb-2 text-gray-800 dark:text-gray-100"></h3>
+        <p id="context-menu-person" class="text-sm text-gray-600 dark:text-gray-400 mb-1"></p>
+        <p id="context-menu-time" class="text-sm text-gray-600 dark:text-gray-400 mb-1"></p>
+        <p id="context-menu-location" class="text-sm text-gray-600 dark:text-gray-400 mb-1"></p>
+        <p id="context-menu-description" class="text-sm text-gray-600 dark:text-gray-400"></p>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            const fileInput = document.getElementById('ics-file-upload');
+            const calendarList = document.getElementById('calendar-list');
+            const calendarContainer = document.getElementById('calendar-container');
+            const calendarGrid = document.getElementById('calendar');
+            const prevBtn = document.getElementById('prev-btn');
+            const nextBtn = document.getElementById('next-btn');
+            const weekViewBtn = document.getElementById('week-view-btn');
+            const dayViewBtn = document.getElementById('day-view-btn');
+            const currentDateDisplay = document.getElementById('current-date-display');
+            const timezoneSelect = document.getElementById('timezone-select');
+            const messageBox = document.getElementById('message-box');
+            const colorPicker = document.getElementById('color-picker');
+            const darkModeToggle = document.getElementById('dark-mode-toggle');
+            const filterViewToggle = document.getElementById('filter-view-toggle');
+            const downloadImageBtn = document.getElementById('download-image-btn');
+            const downloadIcsBtn = document.getElementById('download-ics-btn');
+            const contextMenu = document.getElementById('context-menu');
+            const contextMenuTitle = document.getElementById('context-menu-title');
+            const contextMenuPerson = document.getElementById('context-menu-person');
+            const contextMenuTime = document.getElementById('context-menu-time');
+            const contextMenuLocation = document.getElementById('context-menu-location');
+            const contextMenuDescription = document.getElementById('context-menu-description');
+            const randomPaletteBtn = document.getElementById('random-palette-btn');
+
+            // Global state
+            let uploadedCalendars = [];
+            let currentView = 'week'; // 'week' or 'day'
+            let currentDate = new Date(); // Start with the current date
+            let currentCalendarToEdit = null;
+            let displayTimezone = 'local';
+            let isDarkMode = false;
+            let isFilteredView = false;
+            let userName = '';
+            let colorPalette = [];
+
+            // --- Utility Functions ---
+
+            // Simple message box to replace alerts
+            function showMessage(text, isError = true) {
+                messageBox.textContent = text;
+                messageBox.className = 'absolute top-20 right-20 p-4 rounded-lg text-white transition-opacity duration-500 z-50';
+                messageBox.style.opacity = '1';
+                messageBox.style.backgroundColor = isError ? '#ef4444' : '#10b981';
+                
+                setTimeout(() => {
+                    messageBox.style.opacity = '0';
+                }, 3000);
+            }
+
+            // Function to generate an aesthetically pleasing random color palette
+            function generateRandomPalette(numColors = 7) {
+                const colors = [];
+                const baseHue = Math.floor(Math.random() * 360);
+                const saturation = 70; // High saturation for vibrancy
+                
+                for (let i = 0; i < numColors; i++) {
+                    const hue = (baseHue + (i * (360 / (numColors * 1.6)))) % 360; // Spread hues out
+                    const lightness = 40 + (i % 2) * 10; // Alternate lightness for contrast
+                    colors.push(`hsl(${hue}, ${saturation}%, ${lightness}%)`);
+                }
+                
+                return colors;
+            }
+
+            function applyPalette(palette) {
+                colorPalette = palette;
+                uploadedCalendars.forEach((cal, i) => {
+                    cal.color = colorPalette[i % colorPalette.length];
+                });
+                saveState();
+                renderSidebar();
+                renderCalendar();
+            }
+            
+            // A simple ICS parser that also handles recurring events (RRULE)
+            function parseIcs(icsString) {
+                const lines = icsString.split(/\r\n|\n/);
+                const rawEvents = [];
+                let currentEvent = null;
+
+                lines.forEach(line => {
+                    const trimmedLine = line.trim();
+                    if (trimmedLine === 'BEGIN:VEVENT') {
+                        currentEvent = {};
+                    } else if (trimmedLine === 'END:VEVENT') {
+                        if (currentEvent) {
+                            rawEvents.push(currentEvent);
+                            currentEvent = null;
+                        }
+                    } else if (currentEvent) {
+                        const colonIndex = trimmedLine.indexOf(':');
+                        const key = trimmedLine.substring(0, colonIndex);
+                        const value = trimmedLine.substring(colonIndex + 1);
+                        
+                        // Handle keys with parameters (e.g., DTSTART;VALUE=DATE-TIME)
+                        const semicolonIndex = key.indexOf(';');
+                        let cleanedKey = key;
+                        if (semicolonIndex !== -1) {
+                            cleanedKey = key.substring(0, semicolonIndex);
+                        }
+                        
+                        if (cleanedKey && value) {
+                            currentEvent[cleanedKey] = value;
+                        }
+                    }
+                });
+
+                const allEvents = [];
+                rawEvents.forEach(event => {
+                    try {
+                        const startStr = event.DTSTART;
+                        const endStr = event.DTEND;
+
+                        if (!startStr || !endStr) {
+                            console.error("Missing DTSTART or DTEND for event:", event);
+                            return; // Skip malformed events
+                        }
+
+                        // Function to parse the date/time string
+                        const parseDate = (dateStr) => {
+                            const isAllDay = !dateStr.includes('T');
+                            const hasTimezone = dateStr.endsWith('Z');
+                            
+                            if (isAllDay) {
+                                const year = parseInt(dateStr.substring(0, 4));
+                                const month = parseInt(dateStr.substring(4, 6)) - 1;
+                                const day = parseInt(dateStr.substring(6, 8));
+                                return { date: new Date(year, month, day), isAllDay };
+                            } else {
+                                // Format the date string to be universally parsable
+                                const formattedDateStr = dateStr.replace(/(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/, '$1-$2-$3T$4:$5:$6');
+                                
+                                // Handle UTC time
+                                if (hasTimezone) {
+                                    return { date: new Date(formattedDateStr), isAllDay };
+                                } else {
+                                    // Handle floating time (local time)
+                                    const year = parseInt(dateStr.substring(0, 4));
+                                    const month = parseInt(dateStr.substring(4, 6)) - 1;
+                                    const day = parseInt(dateStr.substring(6, 8));
+                                    const hour = parseInt(dateStr.substring(9, 11));
+                                    const minute = parseInt(dateStr.substring(11, 13));
+                                    const second = parseInt(dateStr.substring(13, 15));
+                                    return { date: new Date(year, month, day, hour, minute, second), isAllDay };
+                                }
+                            }
+                        };
+                        
+                        let { date: startDate, isAllDay } = parseDate(startStr);
+                        let { date: endDate } = parseDate(endStr);
+                        
+                        // Handle RRULE for recurring events
+                        if (event.RRULE) {
+                            const rruleParts = event.RRULE.split(';').reduce((acc, part) => {
+                                const [key, value] = part.split('=');
+                                acc[key] = value;
+                                return acc;
+                            }, {});
+
+                            const untilDate = new Date(rruleParts.UNTIL.replace(/(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z/, '$1-$2-$3T$4:$5:$6Z'));
+                            const byDays = rruleParts.BYDAY.split(',');
+                            const dayMap = { 'SU': 0, 'MO': 1, 'TU': 2, 'WE': 3, 'TH': 4, 'FR': 5, 'SA': 6 };
+                            const dayIndices = byDays.map(day => dayMap[day]);
+                            const originalDuration = endDate.getTime() - startDate.getTime();
+
+                            let currentDate = new Date(startDate);
+                            // Loop through until the UNTIL date
+                            while (currentDate.getTime() <= untilDate.getTime()) {
+                                if (dayIndices.includes(currentDate.getDay())) {
+                                    const newStartDate = new Date(currentDate);
+                                    const newEndDate = new Date(newStartDate.getTime() + originalDuration);
+                                    allEvents.push({
+                                        title: event.SUMMARY || 'No Title',
+                                        description: event.DESCRIPTION || '',
+                                        start: newStartDate,
+                                        end: newEndDate,
+                                        location: event.LOCATION || '',
+                                        isAllDay: isAllDay
+                                    });
+                                }
+                                currentDate.setDate(currentDate.getDate() + 1);
+                            }
+                        } else {
+                            // Not a recurring event, just add the single event
+                            allEvents.push({
+                                title: event.SUMMARY || 'No Title',
+                                description: event.DESCRIPTION || '',
+                                start: startDate,
+                                end: endDate,
+                                location: event.LOCATION || '',
+                                isAllDay: isAllDay
+                            });
+                        }
+                    } catch (e) {
+                        console.error("Error parsing event:", event, e);
+                    }
+                });
+
+                return allEvents;
+            }
+
+            // --- Rendering Functions ---
+
+            function renderSidebar() {
+                calendarList.innerHTML = '';
+                if (uploadedCalendars.length === 0) {
+                    calendarList.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-sm italic">No calendars uploaded yet. To get started, upload an .ics file.</p>';
+                }
+                uploadedCalendars.forEach(cal => {
+                    const container = document.createElement('div');
+                    container.className = 'flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-gray-700 shadow-sm transition-shadow duration-200 hover:shadow-md';
+
+                    const details = document.createElement('div');
+                    // Add min-w-0 to allow this container to shrink
+                    details.className = 'flex items-center flex-grow min-w-0';
+
+                    const colorSwatch = document.createElement('span');
+                    // Add cursor-pointer to indicate it's clickable
+                    colorSwatch.className = 'w-4 h-4 rounded-full mr-3 flex-shrink-0 cursor-pointer';
+                    colorSwatch.style.backgroundColor = cal.color;
+                    
+                    // Add click event listener to the color swatch
+                    colorSwatch.addEventListener('click', () => {
+                        currentCalendarToEdit = cal;
+                        colorPicker.value = cal.color;
+                        colorPicker.click();
+                    });
+
+                    const calName = document.createElement('span');
+                    // Get the name without the .ics extension
+                    const displayFileName = cal.name.replace(/\.ics$/i, '');
+                    calName.textContent = displayFileName;
+                    calName.className = 'font-medium text-gray-700 dark:text-gray-200 truncate cursor-pointer';
+
+                    calName.addEventListener('dblclick', () => {
+                        const input = document.createElement('input');
+                        input.type = 'text';
+                        input.value = cal.name;
+                        input.className = 'font-medium bg-gray-100 dark:bg-gray-600 text-gray-800 dark:text-gray-100 px-2 py-1 rounded-md flex-grow min-w-0';
+                        
+                        input.addEventListener('keydown', (e) => {
+                            if (e.key === 'Enter') {
+                                input.blur();
+                            }
+                        });
+
+                        input.addEventListener('blur', () => {
+                            const newName = input.value.trim();
+                            if (newName && newName !== cal.name) {
+                                if (uploadedCalendars.some(c => c.name === newName)) {
+                                    showMessage(`A calendar named "${newName}" already exists. Please choose a different name.`);
+                                    input.value = cal.name; // Revert to old name
+                                } else {
+                                    cal.name = newName;
+                                    saveState();
+                                    renderSidebar();
+                                    renderCalendar();
+                                }
+                            } else {
+                                renderSidebar(); // Re-render to revert to the span
+                            }
+                        });
+                        details.replaceChild(input, calName);
+                        input.focus();
+                    });
+
+
+                    details.appendChild(colorSwatch);
+                    details.appendChild(calName);
+
+                    const toggleContainer = document.createElement('label');
+                    // Ensure toggle does not shrink
+                    toggleContainer.className = 'toggle-switch-container flex-shrink-0';
+                    
+                    const toggleInput = document.createElement('input');
+                    toggleInput.type = 'checkbox';
+                    toggleInput.checked = cal.enabled;
+                    toggleInput.addEventListener('change', (e) => {
+                        cal.enabled = e.target.checked;
+                        saveState();
+                        renderCalendar();
+                    });
+
+                    const toggleSlider = document.createElement('span');
+                    toggleSlider.className = 'toggle-slider';
+
+                    toggleContainer.appendChild(toggleInput);
+                    toggleContainer.appendChild(toggleSlider);
+
+                    container.appendChild(details);
+                    container.appendChild(toggleContainer);
+                    calendarList.appendChild(container);
+                });
+            }
+            
+            function isOverlapping(eventA, eventB) {
+                return (eventA.start < eventB.end && eventA.end > eventB.start);
+            }
+            
+            function assignColumnsAndWidths(events) {
+                if (events.length === 0) return events;
+
+                events.sort((a, b) => a.start.getTime() - b.start.getTime());
+
+                let columns = [];
+                events.forEach(event => {
+                    let placed = false;
+                    for (let i = 0; i < columns.length; i++) {
+                        const doesOverlap = columns[i].some(colEvent => isOverlapping(event, colEvent));
+                        
+                        if (!doesOverlap) {
+                            columns[i].push(event);
+                            event.column = i;
+                            placed = true;
+                            break;
+                        }
+                    }
+                    if (!placed) {
+                        event.column = columns.length;
+                        columns.push([event]);
+                    }
+                });
+                
+                // Now, calculate the width for each event based on its specific overlap
+                events.forEach(event => {
+                    let maxConcurrent = 1;
+                    
+                    // The correct number of columns is the max number of concurrent events within its overlap group
+                    for (let i = 0; i < events.length; i++) {
+                        const otherEvent = events[i];
+                        if (event === otherEvent) continue; // Skip self
+
+                        if (isOverlapping(event, otherEvent)) {
+                            // Find all events that overlap at the same time
+                            let concurrentEvents = 0;
+                            const overlapStart = Math.max(event.start.getTime(), otherEvent.start.getTime());
+                            const overlapEnd = Math.min(event.end.getTime(), otherEvent.end.getTime());
+
+                            events.forEach(e => {
+                                if (e.start.getTime() < overlapEnd && e.end.getTime() > overlapStart) {
+                                    concurrentEvents++;
+                                }
+                            });
+                            maxConcurrent = Math.max(maxConcurrent, concurrentEvents);
+                        }
+                    }
+                    event.totalColumns = maxConcurrent;
+                });
+                
+                return events;
+            }
+
+            // Helper function to format time without minutes if they are 00
+            function formatTime(date, timezone) {
+                const options = { hour: 'numeric' };
+                // Only set the timezone option if it's not 'local'
+                if (timezone && timezone !== 'local') {
+                    options.timeZone = timezone;
+                }
+                if (date.getMinutes() !== 0) {
+                    options.minute = '2-digit';
+                }
+                return date.toLocaleTimeString('en-US', options);
+            }
+
+            function renderCalendar() {
+                const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                let daysToRender = [];
+                calendarGrid.innerHTML = '';
+                
+                let startDay = new Date(currentDate);
+
+                if (currentView === 'week') {
+                    // Set to the first day of the week (Sunday)
+                    startDay.setDate(currentDate.getDate() - currentDate.getDay());
+                    for (let i = 0; i < 7; i++) {
+                        const day = new Date(startDay);
+                        day.setDate(startDay.getDate() + i);
+                        daysToRender.push(day);
+                    }
+                    if (isFilteredView) {
+                         daysToRender = daysToRender.filter(day => {
+                             const dayOfWeek = day.getDay();
+                             return dayOfWeek !== 0 && dayOfWeek !== 6; // Filter out Sunday (0) and Saturday (6)
+                         });
+                    }
+                    // Dynamically set grid columns based on the number of days
+                    calendarGrid.style.gridTemplateColumns = `60px repeat(${daysToRender.length}, 1fr)`;
+                } else { // day view
+                    daysToRender.push(currentDate);
+                    calendarGrid.style.gridTemplateColumns = `60px 1fr`;
+                }
+
+                const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: displayTimezone === 'local' ? undefined : displayTimezone };
+
+                // Update current date display
+                if (currentView === 'week') {
+                    const endOfWeek = new Date(daysToRender[daysToRender.length-1]);
+                    currentDateDisplay.textContent = `${daysToRender[0].toLocaleDateString('en-US', options)} - ${endOfWeek.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: displayTimezone === 'local' ? undefined : displayTimezone })}`;
+                } else {
+                    currentDateDisplay.textContent = currentDate.toLocaleDateString('en-US', options);
+                }
+
+                // Time column header (empty)
+                const emptyHeader = document.createElement('div');
+                emptyHeader.className = 'day-header';
+                calendarGrid.appendChild(emptyHeader);
+
+                // Day headers
+                daysToRender.forEach((day, i) => {
+                    const header = document.createElement('div');
+                    header.className = 'day-header';
+                    header.textContent = daysOfWeek[day.getDay()];
+                    const date = document.createElement('span');
+                    date.className = 'block font-bold mt-1';
+                    date.textContent = day.getDate();
+                    header.appendChild(date);
+
+                    if (i === daysToRender.length - 1) {
+                        header.classList.add('last-col');
+                    }
+                    calendarGrid.appendChild(header);
+                });
+
+                // Get all events for the week/day to process overlaps correctly
+                const allEvents = uploadedCalendars.flatMap(cal => {
+                    if (!cal.enabled) return [];
+                    return cal.events.map(event => ({
+                        ...event,
+                        color: cal.color,
+                        person: cal.name.replace(/\.ics$/i, '')
+                    }));
+                });
+                
+                // Pre-calculate event positions for each day
+                const positionedEvents = {};
+                daysToRender.forEach(day => {
+                    const dayEvents = allEvents.filter(event => 
+                        event.start && event.start.getFullYear() === day.getFullYear() &&
+                        event.start.getMonth() === day.getMonth() &&
+                        event.start.getDate() === day.getDate()
+                    );
+                    positionedEvents[day.toISOString()] = assignColumnsAndWidths(dayEvents);
+                });
+
+
+                const startHour = isFilteredView ? 7 : 0;
+                const endHour = isFilteredView ? 22 : 23;
+
+                // Create time slot and event slot grid
+                for (let hour = startHour; hour <= endHour; hour++) {
+                    const timeSlot = document.createElement('div');
+                    timeSlot.className = 'time-slot';
+                    const time = new Date();
+                    time.setHours(hour, 0, 0, 0);
+                    timeSlot.textContent = formatTime(time, displayTimezone);
+                    if (hour === endHour) {
+                        timeSlot.classList.add('last-row');
+                    }
+                    calendarGrid.appendChild(timeSlot);
+
+                    daysToRender.forEach((day, i) => {
+                        const eventSlot = document.createElement('div');
+                        eventSlot.className = 'event-slot';
+                        eventSlot.dataset.day = day.toISOString(); // Store day for later use
+                        eventSlot.dataset.hour = hour;
+                        
+                        if (i === daysToRender.length - 1) {
+                            eventSlot.classList.add('last-col');
+                        }
+                        if (hour === endHour) {
+                            eventSlot.classList.add('last-row');
+                        }
+                        calendarGrid.appendChild(eventSlot);
+                    });
+                }
+                
+                // Now place events into the grid
+                daysToRender.forEach((day) => {
+                    const dayEvents = positionedEvents[day.toISOString()];
+                    if (!dayEvents) return; // No events for this day
+
+                    dayEvents.forEach(event => {
+                        const startHour = event.start.getHours();
+                        const startMinute = event.start.getMinutes();
+                        const durationInMinutes = (event.end.getTime() - event.start.getTime()) / (1000 * 60);
+                        
+                        // Find the correct grid cell for the event's start hour
+                        const eventSlotEl = calendarGrid.querySelector(`[data-day="${day.toISOString()}"][data-hour="${startHour}"]`);
+
+                        if (eventSlotEl) {
+                            const eventEl = document.createElement('div');
+                            eventEl.className = 'event z-10';
+                            eventEl.style.backgroundColor = event.color;
+                            eventEl.style.top = `${(startMinute / 60) * 48}px`;
+                            eventEl.style.height = `${(durationInMinutes / 60) * 48}px`;
+
+                            // Calculate dynamic width and left position
+                            const eventWidth = 100 / event.totalColumns;
+                            eventEl.style.width = `calc(${eventWidth}% - 4px)`;
+                            eventEl.style.left = `calc(${event.column * eventWidth}% + 2px)`;
+
+                            eventEl.dataset.event = JSON.stringify({
+                                title: event.title,
+                                start: event.start,
+                                end: event.end,
+                                location: event.location,
+                                description: event.description,
+                                person: event.person
+                            });
+
+                            eventEl.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                const eventData = JSON.parse(e.currentTarget.dataset.event);
+                                
+                                contextMenuTitle.textContent = eventData.title;
+                                contextMenuPerson.textContent = `Person: ${eventData.person}`;
+                                contextMenuTime.textContent = `${formatTime(new Date(eventData.start), displayTimezone)} - ${formatTime(new Date(eventData.end), displayTimezone)}`;
+                                contextMenuLocation.textContent = `Location: ${eventData.location || 'N/A'}`;
+                                contextMenuDescription.textContent = eventData.description || 'No description.';
+
+                                contextMenu.style.top = `${e.clientY}px`;
+                                contextMenu.style.left = `${e.clientX}px`;
+                                contextMenu.classList.remove('hidden');
+                            });
+                            
+                            // Conditionally add text for week view
+                            if (currentView !== 'week' || event.totalColumns < 4) {
+                                const title = document.createElement('div');
+                                title.className = 'event-title';
+                                title.textContent = event.title;
+
+                                const time = document.createElement('div');
+                                time.className = 'event-time';
+                                const startStr = formatTime(event.start, displayTimezone);
+                                const endStr = formatTime(event.end, displayTimezone);
+                                time.textContent = `${startStr} - ${endStr}`;
+                                
+                                eventEl.appendChild(title);
+                                eventEl.appendChild(time);
+                            }
+                            eventSlotEl.appendChild(eventEl);
+                        }
+                    });
+                });
+            }
+
+            // --- State Management ---
+
+            function saveState() {
+                try {
+                    localStorage.setItem('uploadedCalendars', JSON.stringify(uploadedCalendars));
+                    localStorage.setItem('displayTimezone', displayTimezone);
+                    localStorage.setItem('isDarkMode', isDarkMode);
+                    localStorage.setItem('isFilteredView', isFilteredView);
+                } catch (e) {
+                    showMessage('Warning: Local storage is not available. Your calendars will not be saved.');
+                }
+            }
+
+            function loadState() {
+                try {
+                    const savedCalendars = localStorage.getItem('uploadedCalendars');
+                    if (savedCalendars) {
+                        uploadedCalendars = JSON.parse(savedCalendars);
+                        // Revive dates from string format
+                        uploadedCalendars.forEach(cal => {
+                            cal.events.forEach(event => {
+                                event.start = new Date(event.start);
+                                event.end = new Date(event.end);
+                            });
+                        });
+                        showMessage('Calendars loaded from local storage!', false);
+                    }
+                    const savedTimezone = localStorage.getItem('displayTimezone');
+                    if (savedTimezone) {
+                        displayTimezone = savedTimezone;
+                        timezoneSelect.value = savedTimezone;
+                    }
+                    const savedDarkMode = localStorage.getItem('isDarkMode');
+                    // Default to dark mode if no preference is saved
+                    isDarkMode = savedDarkMode === null ? true : savedDarkMode === 'true';
+                    document.documentElement.classList.toggle('dark', isDarkMode);
+                    darkModeToggle.checked = isDarkMode;
+                    
+                    const savedFilteredView = localStorage.getItem('isFilteredView');
+                    isFilteredView = savedFilteredView === null ? false : savedFilteredView === 'true';
+                    filterViewToggle.checked = isFilteredView;
+
+                } catch (e) {
+                    console.error("Failed to load state from local storage", e);
+                }
+            }
+
+            // --- Event Listeners ---
+            document.addEventListener('click', () => {
+                contextMenu.classList.add('hidden');
+            });
+            
+            randomPaletteBtn.addEventListener('click', () => {
+                applyPalette(generateRandomPalette());
+            });
+
+            darkModeToggle.addEventListener('change', () => {
+                isDarkMode = darkModeToggle.checked;
+                document.documentElement.classList.toggle('dark', isDarkMode);
+                saveState();
+                renderCalendar(); // Re-render to apply new grid line color
+            });
+
+            filterViewToggle.addEventListener('change', () => {
+                isFilteredView = filterViewToggle.checked;
+                saveState();
+                renderCalendar();
+            });
+
+            downloadImageBtn.addEventListener('click', () => {
+                // Temporarily remove overflow to capture full calendar
+                calendarContainer.style.overflowY = 'visible';
+                html2canvas(calendarGrid, {
+                    scale: 2, // Capture at a higher resolution
+                    backgroundColor: isDarkMode ? '#1a202c' : '#f3f4f6'
+                }).then(canvas => {
+                    const imageURL = canvas.toDataURL('image/png');
+                    const link = document.createElement('a');
+                    link.href = imageURL;
+                    link.download = 'my-schedule.png';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    // Restore original overflow
+                    calendarContainer.style.overflowY = 'auto';
+                });
+            });
+
+            downloadIcsBtn.addEventListener('click', () => {
+                const combinedEvents = uploadedCalendars.flatMap(cal => cal.enabled ? cal.events : []);
+                let icsString = `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//My Calendar App//NONSGML v1.0//EN\n`;
+
+                combinedEvents.forEach(event => {
+                    // Format dates to ICS standard
+                    const formatIcsDate = (date) => date.toISOString().replace(/[-:]/g, '').replace(/\..+/, '');
+
+                    icsString += `BEGIN:VEVENT\n`;
+                    icsString += `UID:${(Math.random() * 100000).toFixed(0)}-${Date.now()}@calendar-viewer\n`;
+                    icsString += `DTSTAMP:${formatIcsDate(new Date())}\n`;
+                    icsString += `DTSTART:${formatIcsDate(event.start)}\n`;
+                    icsString += `DTEND:${formatIcsDate(event.end)}\n`;
+                    icsString += `SUMMARY:${event.title}\n`;
+                    if (event.location) icsString += `LOCATION:${event.location}\n`;
+                    if (event.description) icsString += `DESCRIPTION:${event.description}\n`;
+                    icsString += `END:VEVENT\n`;
+                });
+
+                icsString += `END:VCALENDAR\n`;
+
+                const blob = new Blob([icsString], { type: 'text/calendar' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'combined-schedule.ics';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            });
+            
+            timezoneSelect.addEventListener('change', (e) => {
+                displayTimezone = e.target.value;
+                saveState();
+                renderCalendar();
+            });
+
+            // Listen for changes on the hidden color picker
+            colorPicker.addEventListener('change', (e) => {
+                if (currentCalendarToEdit) {
+                    currentCalendarToEdit.color = e.target.value;
+                    saveState();
+                    renderSidebar();
+                    renderCalendar();
+                    currentCalendarToEdit = null; // Clear the reference
+                }
+            });
+
+            fileInput.addEventListener('change', async (event) => {
+                const files = event.target.files;
+                if (!files.length) return;
+
+                const newCalendars = [];
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    try {
+                        const fileContent = await file.text();
+                        const events = parseIcs(fileContent);
+
+                        // Check for duplicate filenames
+                        if (uploadedCalendars.some(cal => cal.name === file.name)) {
+                            showMessage(`A calendar named "${file.name}" already exists. Skipping.`);
+                            continue;
+                        }
+
+                        // Use a rolling index for color assignment
+                        const colorIndex = (uploadedCalendars.length + i) % colorPalette.length;
+                        const color = colorPalette[colorIndex];
+
+                        newCalendars.push({
+                            name: file.name,
+                            color: color,
+                            events: events,
+                            enabled: true
+                        });
+                        showMessage(`Successfully uploaded ${file.name}!`, false);
+                    } catch (error) {
+                        showMessage(`Error processing file ${file.name}. Please ensure it's a valid .ics file.`);
+                        console.error("Error processing file:", file.name, error);
+                    }
+                }
+                uploadedCalendars.push(...newCalendars);
+                saveState();
+                renderSidebar();
+                renderCalendar();
+            });
+
+            prevBtn.addEventListener('click', () => {
+                if (currentView === 'week') {
+                    currentDate.setDate(currentDate.getDate() - 7);
+                } else {
+                    currentDate.setDate(currentDate.getDate() - 1);
+                }
+                renderCalendar();
+            });
+
+            nextBtn.addEventListener('click', () => {
+                if (currentView === 'week') {
+                    currentDate.setDate(currentDate.getDate() + 7);
+                } else {
+                    currentDate.setDate(currentDate.getDate() + 1);
+                }
+                renderCalendar();
+            });
+
+            weekViewBtn.addEventListener('click', () => {
+                currentView = 'week';
+                weekViewBtn.className = 'px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200 bg-blue-500 text-white shadow-md';
+                dayViewBtn.className = 'px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700';
+                renderCalendar();
+            });
+
+            dayViewBtn.addEventListener('click', () => {
+                currentView = 'day';
+                dayViewBtn.className = 'px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200 bg-blue-500 text-white shadow-md';
+                weekViewBtn.className = 'px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700';
+                renderCalendar();
+            });
+
+
+            // --- Initial Load ---
+            loadState();
+            if (uploadedCalendars.length === 0) {
+                 applyPalette(generateRandomPalette());
+            }
+            renderSidebar();
+            renderCalendar();
+
+        });
+    </script>
+</body>
+</html>
