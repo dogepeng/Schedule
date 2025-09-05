@@ -204,6 +204,26 @@
             background-color: #2d3748;
         }
 
+        /* Sidebar Toggle Styles */
+        #sidebar {
+            transition: transform 0.3s ease-in-out;
+            transform: translateX(0);
+        }
+        .sidebar-closed {
+            transform: translateX(-100%);
+        }
+        @media (max-width: 767px) {
+            #sidebar {
+                position: absolute;
+                left: 0;
+                top: 0;
+                bottom: 0;
+                z-index: 50;
+                width: 75%;
+                max-width: 320px;
+                box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            }
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
@@ -213,8 +233,15 @@
     <div id="message-box" class="hidden"></div>
 
     <!-- Sidebar -->
-    <div id="sidebar" class="w-64 bg-white dark:bg-gray-800 p-6 shadow-md overflow-y-auto z-20 flex-shrink-0">
-        <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-6">Calendars</h1>
+    <div id="sidebar" class="w-64 bg-white dark:bg-gray-800 p-6 shadow-md overflow-y-auto z-20 flex-shrink-0 md:w-64">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-100">Calendars</h1>
+            <button id="sidebar-toggle-close" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200 md:hidden">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
 
         <!-- File Upload Area -->
         <div class="mb-6">
@@ -237,6 +264,11 @@
     <div class="flex-1 flex flex-col p-6 overflow-hidden">
         <!-- Calendar Header -->
         <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
+            <button id="sidebar-toggle-open" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 md:hidden">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+            </button>
             <div class="flex items-center space-x-2">
                 <button id="prev-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -340,6 +372,9 @@
             const contextMenuLocation = document.getElementById('context-menu-location');
             const contextMenuDescription = document.getElementById('context-menu-description');
             const randomPaletteBtn = document.getElementById('random-palette-btn');
+            const sidebar = document.getElementById('sidebar');
+            const sidebarToggleOpen = document.getElementById('sidebar-toggle-open');
+            const sidebarToggleClose = document.getElementById('sidebar-toggle-close');
 
             // Global state
             let uploadedCalendars = [];
@@ -1075,17 +1110,17 @@
             // New function to preload .ics files
             async function preloadIcsFiles() {
                 const preloadFiles = [
-                    { name: 'Abbas.ics', url: 'https://raw.githubusercontent.com/dogepeng/Schedule/refs/heads/main/schedules/Abbas-gt-scheduler.ics' },
-                    { name: 'Ahmed.ics', url: 'https://raw.githubusercontent.com/dogepeng/Schedule/refs/heads/main/schedules/Ahmed-gt-scheduler.ics' },
-                    { name: 'Armando.ics', url: 'https://raw.githubusercontent.com/dogepeng/Schedule/refs/heads/main/schedules/Armando-gt-scheduler.ics' },
-                    { name: 'Grayson.ics', url: 'https://raw.githubusercontent.com/dogepeng/Schedule/refs/heads/main/schedules/Grayson-gt-scheduler.ics' },
-                    { name: 'Hari.ics', url: 'https://raw.githubusercontent.com/dogepeng/Schedule/refs/heads/main/schedules/Hari-gt-scheduler.ics' },
-                    { name: 'James.ics', url: 'https://raw.githubusercontent.com/dogepeng/Schedule/refs/heads/main/schedules/James-gt-scheduler.ics' },
-                    { name: 'Lucas.ics', url: 'https://raw.githubusercontent.com/dogepeng/Schedule/refs/heads/main/schedules/Lucas-gt-scheduler.ics' },
-                    { name: 'Matt.ics', url: 'https://raw.githubusercontent.com/dogepeng/Schedule/refs/heads/main/schedules/Matt-gt-scheduler.ics' },
-                    { name: 'Ryan.ics', url: 'https://raw.githubusercontent.com/dogepeng/Schedule/refs/heads/main/schedules/Ryan-gt-scheduler.ics' },
-                    { name: 'Sebastian.ics', url: 'https://raw.githubusercontent.com/dogepeng/Schedule/refs/heads/main/schedules/Sebastian-gt-scheduler.ics' },
-                    { name: 'Zach.ics', url: 'https://raw.githubusercontent.com/dogepeng/Schedule/refs/heads/main/schedules/Zach-gt-scheduler.ics' }
+                    { name: 'Abbas.ics', url: 'https://raw.githubusercontent.com/dogepeng/Schedule/main/schedules/Abbas-gt-scheduler.ics' },
+                    { name: 'Ahmed.ics', url: 'https://raw.githubusercontent.com/dogepeng/Schedule/main/schedules/Ahmed-gt-scheduler.ics' },
+                    { name: 'Armando.ics', url: 'https://raw.githubusercontent.com/dogepeng/Schedule/main/schedules/Armando-gt-scheduler.ics' },
+                    { name: 'Grayson.ics', url: 'https://raw.githubusercontent.com/dogepeng/Schedule/main/schedules/Grayson-gt-scheduler.ics' },
+                    { name: 'Hari.ics', url: 'https://raw.githubusercontent.com/dogepeng/Schedule/main/schedules/Hari-gt-scheduler.ics' },
+                    { name: 'James.ics', url: 'https://raw.githubusercontent.com/dogepeng/Schedule/main/schedules/James-gt-scheduler.ics' },
+                    { name: 'Lucas.ics', url: 'https://raw.githubusercontent.com/dogepeng/Schedule/main/schedules/Lucas-gt-scheduler.ics' },
+                    { name: 'Matt.ics', url: 'https://raw.githubusercontent.com/dogepeng/Schedule/main/schedules/Matt-gt-scheduler.ics' },
+                    { name: 'Ryan.ics', url: 'https://raw.githubusercontent.com/dogepeng/Schedule/main/schedules/Ryan-gt-scheduler.ics' },
+                    { name: 'Sebastian.ics', url: 'https://raw.githubusercontent.com/dogepeng/Schedule/main/schedules/Sebastian-gt-scheduler.ics' },
+                    { name: 'Zach.ics', url: 'https://raw.githubusercontent.com/dogepeng/Schedule/main/schedules/Zach-gt-scheduler.ics' }
                 ];
                 
                 const fetchPromises = preloadFiles.map(async (file) => {
@@ -1130,6 +1165,21 @@
                 renderSidebar();
                 renderCalendar();
             }
+
+            // --- New Toggle Functionality ---
+            sidebarToggleOpen.addEventListener('click', () => {
+                sidebar.classList.remove('sidebar-closed');
+            });
+
+            sidebarToggleClose.addEventListener('click', () => {
+                sidebar.classList.add('sidebar-closed');
+            });
+            
+            // Initial hide for mobile
+            if (window.innerWidth < 768) {
+                sidebar.classList.add('sidebar-closed');
+            }
+
 
         });
     </script>
