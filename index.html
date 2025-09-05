@@ -223,6 +223,12 @@
                 max-width: 320px;
                 box-shadow: 0 0 10px rgba(0,0,0,0.5);
             }
+            .mobile-hidden {
+                display: none;
+            }
+            .mobile-flex {
+                display: flex;
+            }
         }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -283,7 +289,8 @@
                 </button>
             </div>
 
-            <div class="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-4">
+            <!-- New mobile-friendly container for controls -->
+            <div id="controls" class="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-4 mobile-hidden">
                 <div class="flex space-x-2 bg-white dark:bg-gray-800 rounded-full p-1 shadow">
                     <button id="week-view-btn" class="px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200 bg-blue-500 text-white shadow-md">Week View</button>
                     <button id="day-view-btn" class="px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">Day View</button>
@@ -299,7 +306,7 @@
             </div>
 
             <!-- New Export/Mode Controls -->
-            <div class="flex items-center space-x-4 flex-wrap">
+            <div id="export-controls" class="flex items-center space-x-4 flex-wrap mobile-hidden">
                 <!-- Hide Weekends/Off-hours Toggle -->
                 <label class="flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-200 cursor-pointer">
                     <span class="mr-2 whitespace-nowrap">Filter View</span>
@@ -375,6 +382,8 @@
             const sidebar = document.getElementById('sidebar');
             const sidebarToggleOpen = document.getElementById('sidebar-toggle-open');
             const sidebarToggleClose = document.getElementById('sidebar-toggle-close');
+            const controls = document.getElementById('controls');
+            const exportControls = document.getElementById('export-controls');
 
             // Global state
             let uploadedCalendars = [];
@@ -947,8 +956,11 @@
             }
 
             // --- Event Listeners ---
-            document.addEventListener('click', () => {
-                contextMenu.classList.add('hidden');
+            document.addEventListener('click', (event) => {
+                // Check if the click is outside the context menu
+                if (!contextMenu.contains(event.target)) {
+                    contextMenu.classList.add('hidden');
+                }
             });
             
             randomPaletteBtn.addEventListener('click', () => {
